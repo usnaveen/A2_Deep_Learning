@@ -270,7 +270,11 @@ class OxfordIIITPetDataset(Dataset):
                 bbox_labels=[class_id],
             )
             image_tensor = transformed["image"]               # [3, H, W]
-            mask_tensor = torch.from_numpy(transformed["mask"]).long()  # [H, W]
+            _mask = transformed["mask"]
+            if torch.is_tensor(_mask):
+                mask_tensor = _mask.long()
+            else:
+                mask_tensor = torch.from_numpy(_mask).long()  # [H, W]
 
             if len(transformed["bboxes"]) > 0:
                 bbox_resized = list(transformed["bboxes"][0])  # [xmin, ymin, xmax, ymax] in resized space
