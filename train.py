@@ -24,6 +24,9 @@ import sys
 import time
 from pathlib import Path
 
+# Prevents W&B from calling the Kaggle Sessions API (causes permission errors on shared accounts)
+os.environ.setdefault("WANDB_DISABLE_CODE", "1")
+
 import numpy as np
 import torch
 import torch.nn as nn
