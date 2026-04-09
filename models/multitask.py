@@ -2,6 +2,13 @@
 
 Loads pre-trained weights for the classifier, localizer, and U-Net,
 then exposes a single forward() that returns all three predictions.
+
+HOW TO UPDATE WEIGHTS FOR GRADESCOPE:
+  1. Train each model on Kaggle (see Kaggle_Task*.ipynb notebooks).
+  2. Upload the saved .pth files to Google Drive.
+  3. Share each file as "Anyone with the link".
+  4. Paste the file ID (from the share URL) into the three constants below.
+  5. git commit + push — Gradescope will pick up the new IDs automatically.
 """
 
 import os
@@ -10,6 +17,41 @@ import torch.nn as nn
 
 from .vgg11 import VGG11Encoder
 from .layers import CustomDropout
+
+# ── Paste your Google Drive file IDs here after uploading checkpoints ────────
+# Get the ID from the share link:  https://drive.google.com/file/d/FILE_ID/view
+CLASSIFIER_DRIVE_ID = "<classifier.pth drive id>"   # ← replace after Task 1
+LOCALIZER_DRIVE_ID  = "<localizer.pth drive id>"    # ← replace after Task 2
+UNET_DRIVE_ID       = "<unet.pth drive id>"         # ← replace after Task 3
+
+
+def _safe_download(drive_id: str, output_path: str, label: str) -> bool:
+    """Download a file from Google Drive only if it doesn't exist locally.
+
+    Returns True if the file is available (already existed or just downloaded).
+    """
+    if os.path.exists(output_path):
+        print(f"  ✓ {label} already present at {output_path}")
+        return True
+
+    if drive_id.startswith("<"):
+        print(f"  ⚠  {label}: Drive ID not set yet — skipping download.")
+        return False
+
+    try:
+        import gdown
+        os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+        print(f"  ↓ Downloading {label} from Google Drive ...")
+        gdown.download(id=drive_id, output=output_path, quiet=False, fuzzy=True)
+        if os.path.exists(output_path):
+            print(f"  ✓ {label} downloaded successfully.")
+            return True
+        else:
+            print(f"  ✗ {label}: download completed but file not found.")
+            return False
+    except Exception as exc:
+        print(f"  ✗ {label}: download failed — {exc}")
+        return False
 
 
 class MultiTaskPerceptionModel(nn.Module):
@@ -45,11 +87,10 @@ class MultiTaskPerceptionModel(nn.Module):
         """
         super().__init__()
 
-        # ── Download from Google Drive if checkpoints don't exist ────────
-        import gdown
-        gdown.download(id="<classifier.pth drive id>", output=classifier_path, quiet=False)
-        gdown.download(id="<localizer.pth drive id>", output=localizer_path, quiet=False)
-        gdown.download(id="<unet.pth drive id>", output=unet_path, quiet=False)
+        # ── Download checkpoints from Drive if not already present ───────
+        _safe_download(CLASSIFIER_DRIVE_ID, classifier_path, "classifier.pth")
+        _safe_download(LOCALIZER_DRIVE_ID,  localizer_path,  "localizer.pth")
+        _safe_download(UNET_DRIVE_ID,       unet_path,       "unet.pth")
 
         self.image_size = image_size
 
@@ -90,10 +131,10 @@ class MultiTaskPerceptionModel(nn.Module):
         )
         from .segmentation import DecoderBlock
         self.seg_up4 = DecoderBlock(1024, 512, 512)
-        self.seg_up3 = DecoderBlock(512, 512, 256)
-        self.seg_up2 = DecoderBlock(256, 256, 128)
-        self.seg_up1 = DecoderBlock(128, 128, 64)
-        self.seg_up0 = DecoderBlock(64, 64, 64)
+        self.seg_up3 = DecoderBlock(512,  512, 256)
+        self.seg_up2 = DecoderBlock(256,  256, 128)
+        self.seg_up1 = DecoderBlock(128,  128,  64)
+        self.seg_up0 = DecoderBlock( 64,   64,  64)
         self.seg_final = nn.Conv2d(64, seg_classes, kernel_size=1)
 
         # ── Load pretrained weights ─────────────────────────────────────
@@ -119,6 +160,7 @@ class MultiTaskPerceptionModel(nn.Module):
                     {k.replace("head.", ""): v for k, v in head_keys.items()},
                     strict=False,
                 )
+            print("  ✓ Classifier weights loaded.")
 
         # Load localizer weights → localization_head
         if os.path.exists(loc_path):
@@ -129,6 +171,7 @@ class MultiTaskPerceptionModel(nn.Module):
                     {k.replace("head.", ""): v for k, v in head_keys.items()},
                     strict=False,
                 )
+            print("  ✓ Localizer weights loaded.")
 
         # Load U-Net weights → segmentation decoder
         if os.path.exists(unet_path):
@@ -151,6 +194,7 @@ class MultiTaskPerceptionModel(nn.Module):
                        if k.startswith("final_conv.")}
             if fc_keys:
                 self.seg_final.load_state_dict(fc_keys, strict=False)
+            print("  ✓ U-Net segmentation weights loaded.")
 
     def forward(self, x: torch.Tensor):
         """Forward pass for multi-task model.
@@ -189,6 +233,6 @@ class MultiTaskPerceptionModel(nn.Module):
 
         return {
             "classification": classification,
-            "localization": localization,
-            "segmentation": segmentation,
+            "localization":   localization,
+            "segmentation":   segmentation,
         }
