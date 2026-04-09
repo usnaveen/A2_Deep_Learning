@@ -86,7 +86,7 @@ def get_train_transforms(image_size: int = 224):
             A.CoarseDropout(num_holes_range=(1, 4),
                             hole_height_range=(8, image_size // 8),
                             hole_width_range=(8, image_size // 8),
-                            fill_value=0, p=0.3),
+                            p=0.3),
             A.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
             ToTensorV2(),
         ],
