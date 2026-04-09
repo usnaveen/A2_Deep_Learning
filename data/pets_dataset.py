@@ -78,13 +78,15 @@ def get_train_transforms(image_size: int = 224):
         return None
     return A.Compose(
         [
-            A.RandomResizedCrop(height=image_size, width=image_size, scale=(0.5, 1.0), ratio=(0.75, 1.33), p=1.0),
+            A.RandomResizedCrop(size=(image_size, image_size), scale=(0.5, 1.0), ratio=(0.75, 1.33), p=1.0),
             A.HorizontalFlip(p=0.5),
             A.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1, p=0.5),
             A.Rotate(limit=15, p=0.3),
             A.GaussianBlur(blur_limit=(3, 5), p=0.2),
-            A.CoarseDropout(max_holes=4, max_height=image_size // 8, max_width=image_size // 8,
-                            min_holes=1, fill_value=0, p=0.3),
+            A.CoarseDropout(num_holes_range=(1, 4),
+                            hole_height_range=(8, image_size // 8),
+                            hole_width_range=(8, image_size // 8),
+                            fill_value=0, p=0.3),
             A.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
             ToTensorV2(),
         ],
