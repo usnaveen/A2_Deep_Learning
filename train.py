@@ -725,8 +725,9 @@ def log_detection_table(model, test_loader, device, image_size):
                 mse_val = ((pred - gt) ** 2).mean()
                 confidence = 1.0 / (1.0 + mse_val)
 
+                from PIL import Image as PILImage
                 table.add_data(
-                    wandb.Image(buf),
+                    wandb.Image(PILImage.open(buf)),
                     f"cx={gt[0]:.1f} cy={gt[1]:.1f} w={gt[2]:.1f} h={gt[3]:.1f}",
                     f"cx={pred[0]:.1f} cy={pred[1]:.1f} w={pred[2]:.1f} h={pred[3]:.1f}",
                     round(iou_val, 4),
