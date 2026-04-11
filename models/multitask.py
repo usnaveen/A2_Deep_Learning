@@ -20,9 +20,9 @@ from .layers import CustomDropout
 
 # ── Paste your Google Drive file IDs here after uploading checkpoints ────────
 # Get the ID from the share link:  https://drive.google.com/file/d/FILE_ID/view
-CLASSIFIER_DRIVE_ID = "<classifier.pth drive id>"   # ← replace after Task 1
-LOCALIZER_DRIVE_ID  = "<localizer.pth drive id>"    # ← replace after Task 2
-UNET_DRIVE_ID       = "<unet.pth drive id>"         # ← replace after Task 3
+CLASSIFIER_DRIVE_ID = "1jPrAaVV3XYwfuX4y3Z1y2gXnGUYqHXJJ"   # ← replace after Task 1
+LOCALIZER_DRIVE_ID  = "1QjDlqTkosCAMJNOfERqaaQGmNdjeIW3w"    # ← replace after Task 2
+UNET_DRIVE_ID       = "1u8c0OlzqmEW0B79fxiVG_kowQ1mi1RFn"         # ← replace after Task 3
 
 
 def _safe_download(drive_id: str, output_path: str, label: str) -> bool:
