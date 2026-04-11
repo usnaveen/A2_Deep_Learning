@@ -22,7 +22,7 @@ from .layers import CustomDropout
 # Get the ID from the share link:  https://drive.google.com/file/d/FILE_ID/view
 CLASSIFIER_DRIVE_ID = "1jPrAaVV3XYwfuX4y3Z1y2gXnGUYqHXJJ"   # ← replace after Task 1
 LOCALIZER_DRIVE_ID  = "1QjDlqTkosCAMJNOfERqaaQGmNdjeIW3w"    # ← replace after Task 2
-UNET_DRIVE_ID       = "1u8c0OlzqmEW0B79fxiVG_kowQ1mi1RFn"         # ← replace after Task 3
+UNET_DRIVE_ID       = "1527bugKX9NKd_JAOltXdH_rpU1j6Spzj"         # ← partial freeze unet from sys2
 
 
 def _safe_download(drive_id: str, output_path: str, label: str) -> bool:
