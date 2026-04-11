@@ -90,7 +90,7 @@ def get_train_transforms(image_size: int = 224):
             A.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
             ToTensorV2(),
         ],
-        bbox_params=A.BboxParams(format="pascal_voc", label_fields=["bbox_labels"], min_visibility=0.3),
+        bbox_params=A.BboxParams(format="pascal_voc", label_fields=["bbox_labels"], min_visibility=0.01),
         additional_targets={"mask": "mask"},
     )
 
@@ -105,7 +105,7 @@ def get_val_transforms(image_size: int = 224):
             A.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
             ToTensorV2(),
         ],
-        bbox_params=A.BboxParams(format="pascal_voc", label_fields=["bbox_labels"], min_visibility=0.3),
+        bbox_params=A.BboxParams(format="pascal_voc", label_fields=["bbox_labels"], min_visibility=0.01),
         additional_targets={"mask": "mask"},
     )
 
@@ -285,8 +285,9 @@ class OxfordIIITPetDataset(Dataset):
             if len(transformed["bboxes"]) > 0:
                 bbox_resized = list(transformed["bboxes"][0])  # [xmin, ymin, xmax, ymax] in resized space
             else:
-                # Bbox was lost during transform (e.g. flipped out) — fallback
-                bbox_resized = [0.0, 0.0, float(self.image_size), float(self.image_size)]
+                # Bbox was cropped out — use center crop as fallback (better than full image)
+                s = self.image_size
+                bbox_resized = [s * 0.1, s * 0.1, s * 0.9, s * 0.9]
         else:
             # Manual fallback (no albumentations)
             from torchvision import transforms as T
