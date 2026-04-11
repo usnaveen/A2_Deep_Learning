@@ -123,6 +123,38 @@ class ActivationLogger:
 # Training loops
 # ──────────────────────────────────────────────────────────────────────────────
 
+def _load_imagenet_encoder_weights(encoder) -> None:
+    """Copy ImageNet-pretrained VGG11-BN conv/BN weights into our custom encoder.
+
+    torchvision VGG11-BN `features` layer indices (conv/BN only, skipping ReLU/pool):
+        0,1  → block0[0,1]        (64)
+        4,5  → block1[0,1]        (128)
+        8,9  → block2[0,1]        (256)
+        11,12→ block2[3,4]        (256)
+        15,16→ block3[0,1]        (512)
+        18,19→ block3[3,4]        (512)
+        22,23→ block4[0,1]        (512)
+        25,26→ block4[3,4]        (512)
+    """
+    import torchvision.models as tvm
+    pretrained = tvm.vgg11_bn(weights=tvm.VGG11_BN_Weights.IMAGENET1K_V1)
+    feat = pretrained.features
+    mappings = [
+        (0,  encoder.block0, 0), (1,  encoder.block0, 1),
+        (4,  encoder.block1, 0), (5,  encoder.block1, 1),
+        (8,  encoder.block2, 0), (9,  encoder.block2, 1),
+        (11, encoder.block2, 3), (12, encoder.block2, 4),
+        (15, encoder.block3, 0), (16, encoder.block3, 1),
+        (18, encoder.block3, 3), (19, encoder.block3, 4),
+        (22, encoder.block4, 0), (23, encoder.block4, 1),
+        (25, encoder.block4, 3), (26, encoder.block4, 4),
+    ]
+    for src_idx, target_block, dst_idx in mappings:
+        target_block[dst_idx].load_state_dict(feat[src_idx].state_dict())
+    del pretrained
+    print("  ✓ ImageNet pretrained VGG11-BN encoder weights loaded")
+
+
 def train_classifier(args):
     """Train the VGG11 classifier (Task 1).
 
@@ -136,15 +168,18 @@ def train_classifier(args):
 
     use_bn = not args.no_bn
 
+    use_pretrained = getattr(args, "pretrained", False)
+
     # Init W&B
     run = wandb.init(
         project=args.wandb_project,
-        name=f"classify_bn={use_bn}_drop={args.dropout}",
+        name=f"classify_bn={use_bn}_drop={args.dropout}_pretrained={use_pretrained}",
         tags=[args.experiment, "classification"],
         config={
             "task": "classification",
             "use_bn": use_bn,
             "dropout_p": args.dropout,
+            "pretrained": use_pretrained,
             "lr": args.lr,
             "batch_size": args.batch_size,
             "epochs": args.epochs,
@@ -166,6 +201,10 @@ def train_classifier(args):
         dropout_p=args.dropout,
         use_bn=use_bn,
     ).to(device)
+
+    # Optionally initialise encoder from ImageNet pretrained VGG11-BN
+    if getattr(args, "pretrained", False) and use_bn:
+        _load_imagenet_encoder_weights(model.encoder)
 
     # Register activation hooks for §2.1 (3rd conv layer)
     act_logger = ActivationLogger()
@@ -763,6 +802,8 @@ def parse_args():
 
     # Task-specific
     parser.add_argument("--no-bn", action="store_true", help="Disable BatchNorm (for §2.1)")
+    parser.add_argument("--pretrained", action="store_true",
+                        help="Initialise encoder from ImageNet pretrained VGG11-BN (classification only)")
     parser.add_argument("--freeze-mode", type=str, default="full",
                         choices=["frozen", "partial", "full"],
                         help="Transfer learning strategy for segmentation (§2.3)")
