@@ -125,6 +125,7 @@ class MultiTaskPerceptionModel(nn.Module):
             nn.Conv2d(512, 1024, kernel_size=3, padding=1),
             nn.BatchNorm2d(1024),
             nn.ReLU(inplace=True),
+            CustomDropout(p=0.5),
             nn.Conv2d(1024, 1024, kernel_size=3, padding=1),
             nn.BatchNorm2d(1024),
             nn.ReLU(inplace=True),
