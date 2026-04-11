@@ -21,7 +21,7 @@ from .layers import CustomDropout
 # ── Paste your Google Drive file IDs here after uploading checkpoints ────────
 # Get the ID from the share link:  https://drive.google.com/file/d/FILE_ID/view
 CLASSIFIER_DRIVE_ID = "1jPrAaVV3XYwfuX4y3Z1y2gXnGUYqHXJJ"   # ← replace after Task 1
-LOCALIZER_DRIVE_ID  = "1QjDlqTkosCAMJNOfERqaaQGmNdjeIW3w"    # ← replace after Task 2
+LOCALIZER_DRIVE_ID  = "11c3ZbZdBN_ztyxOfyQOaWC8Ftt0-XR1j"    # ← retrained with bbox fix (val IoU=0.683)
 UNET_DRIVE_ID       = "1527bugKX9NKd_JAOltXdH_rpU1j6Spzj"         # ← partial freeze unet from sys2
 
 
