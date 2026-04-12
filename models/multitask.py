@@ -20,9 +20,41 @@ from .layers import CustomDropout
 
 # ── Paste your Google Drive file IDs here after uploading checkpoints ────────
 # Get the ID from the share link:  https://drive.google.com/file/d/FILE_ID/view
-CLASSIFIER_DRIVE_ID = "1jPrAaVV3XYwfuX4y3Z1y2gXnGUYqHXJJ"   # ← replace after Task 1
-LOCALIZER_DRIVE_ID  = "11c3ZbZdBN_ztyxOfyQOaWC8Ftt0-XR1j"    # ← retrained with bbox fix (val IoU=0.683)
-UNET_DRIVE_ID       = "1527bugKX9NKd_JAOltXdH_rpU1j6Spzj"         # ← partial freeze unet from sys2
+CLASSIFIER_DRIVE_ID = "1Ob4ecaMOaoH-56TdIQ9lYEdGKfn1jy8L"   # ← friend's weights (val F1=0.9325)
+LOCALIZER_DRIVE_ID  = "1jRM83Xr6HETheUhv1MQqRMEl2eAwbkSK"   # ← friend's weights (val Acc@0.5=91.8%)
+UNET_DRIVE_ID       = "1527bugKX9NKd_JAOltXdH_rpU1j6Spzj"   # ← partial freeze unet (val Dice≈0.82)
+
+
+def _remap_friend_keys(sd: dict) -> dict:
+    """Remap friend's state-dict key naming to our conventions.
+
+    Friend encoder: encoder.blockN.M.L.suffix  (1-indexed, 3-level)
+    Our encoder:    encoder.blockX.Y.suffix     (0-indexed, 2-level flat)
+    Also handles:   classifier.* / regressor.*  → head.*
+    Returns the original dict unchanged if it already uses our format.
+    """
+    import re
+    # Detect friend format by looking for 3-level encoder keys
+    if not any(re.match(r'encoder\.block\d+\.\d+\.\d+\.', k) for k in sd):
+        return sd  # already our format — nothing to do
+
+    new_sd: dict = {}
+    for k, v in sd.items():
+        m = re.match(r'encoder\.block(\d+)\.(\d+)\.(\d+)\.(.*)', k)
+        if m:
+            N, M, L, suf = int(m.group(1)), int(m.group(2)), int(m.group(3)), m.group(4)
+            X = N - 1                       # 1-indexed → 0-indexed
+            if X in (0, 1):                 # single-conv block
+                Y = 0 if L == 0 else 1
+            else:                           # double-conv block
+                Y = (0 if L == 0 else 1) if M == 0 else (3 if L == 0 else 4)
+            new_sd[f'encoder.block{X}.{Y}.{suf}'] = v
+        elif k.startswith('classifier.'):   # friend classifier head → our head
+            new_sd['head.' + k[len('classifier.'):]] = v
+        elif k.startswith('regressor.'):    # friend localizer head → our head
+            new_sd['head.' + k[len('regressor.'):]] = v
+        # (other keys like pool/maxpool that don't exist in our encoder are dropped)
+    return new_sd
 
 
 def _safe_download(drive_id: str, output_path: str, label: str) -> bool:
@@ -147,7 +179,9 @@ class MultiTaskPerceptionModel(nn.Module):
 
         # Load classifier weights → encoder + classification_head
         if os.path.exists(cls_path):
-            cls_state = torch.load(cls_path, map_location=device, weights_only=False)
+            cls_state = _remap_friend_keys(
+                torch.load(cls_path, map_location=device, weights_only=False)
+            )
             # Load encoder weights from classifier
             encoder_keys = {k: v for k, v in cls_state.items() if k.startswith("encoder.")}
             self.encoder.load_state_dict(
@@ -165,7 +199,9 @@ class MultiTaskPerceptionModel(nn.Module):
 
         # Load localizer weights → localization_head
         if os.path.exists(loc_path):
-            loc_state = torch.load(loc_path, map_location=device, weights_only=False)
+            loc_state = _remap_friend_keys(
+                torch.load(loc_path, map_location=device, weights_only=False)
+            )
             head_keys = {k: v for k, v in loc_state.items() if k.startswith("head.")}
             if head_keys:
                 self.localization_head.load_state_dict(
