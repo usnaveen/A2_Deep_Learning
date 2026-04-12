@@ -126,8 +126,9 @@ class MultiTaskPerceptionModel(nn.Module):
 
         self.image_size = image_size
 
-        # ── Shared VGG11 encoder ─────────────────────────────────────────
-        self.encoder = VGG11Encoder(in_channels=in_channels, use_bn=True)
+        # ── Dual encoders (each head needs the encoder it was trained with) ──
+        self.cls_encoder = VGG11Encoder(in_channels=in_channels, use_bn=True)
+        self.seg_encoder = VGG11Encoder(in_channels=in_channels, use_bn=True)
 
         # ── Classification head (from classifier) ────────────────────────
         self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
@@ -182,9 +183,9 @@ class MultiTaskPerceptionModel(nn.Module):
             cls_state = _canonicalize_checkpoint(
                 torch.load(cls_path, map_location=device, weights_only=False)
             )
-            # Load encoder weights from classifier
+            # Load encoder weights from classifier → cls_encoder (for cls + loc)
             encoder_keys = {k: v for k, v in cls_state.items() if k.startswith("encoder.")}
-            self.encoder.load_state_dict(
+            self.cls_encoder.load_state_dict(
                 {k.replace("encoder.", ""): v for k, v in encoder_keys.items()},
                 strict=False,
             )
@@ -210,16 +211,14 @@ class MultiTaskPerceptionModel(nn.Module):
                 )
             print("  ✓ Localizer weights loaded.")
 
-        # Load U-Net weights → encoder override + segmentation decoder
+        # Load U-Net weights → seg_encoder + segmentation decoder
         if os.path.exists(unet_path):
             unet_state = torch.load(unet_path, map_location=device, weights_only=False)
-            # Override shared encoder with UNet's encoder — the decoder skip
-            # connections were trained against these specific feature maps, so
-            # the encoder MUST match the decoder to produce correct predictions.
+            # Load UNet encoder → seg_encoder (decoder needs this exact encoder)
             enc_keys = {k[len("encoder."):]: v for k, v in unet_state.items()
                         if k.startswith("encoder.")}
             if enc_keys:
-                self.encoder.load_state_dict(enc_keys, strict=False)
+                self.seg_encoder.load_state_dict(enc_keys, strict=False)
             # Load bottleneck
             bn_keys = {k[len("bottleneck."):]: v for k, v in unet_state.items()
                        if k.startswith("bottleneck.")}
@@ -238,7 +237,7 @@ class MultiTaskPerceptionModel(nn.Module):
                        if k.startswith("final_conv.")}
             if fc_keys:
                 self.seg_final.load_state_dict(fc_keys, strict=False)
-            print("  ✓ U-Net segmentation weights loaded (encoder overridden).")
+            print("  ✓ U-Net segmentation weights loaded.")
 
     def forward(self, x: torch.Tensor):
         """Forward pass for multi-task model.
@@ -252,22 +251,22 @@ class MultiTaskPerceptionModel(nn.Module):
             - 'localization': [B, 4] bounding box tensor.
             - 'segmentation': [B, seg_classes, H, W] segmentation logits tensor.
         """
-        # ── Shared encoder with skip connections ─────────────────────────
-        bottleneck, skips = self.encoder(x, return_features=True)
+        # ── Classification / Localization encoder ────────────────────────
+        cls_bottleneck = self.cls_encoder(x)          # [B, 512, 7, 7]
+        cls_flat = torch.flatten(self.avgpool(cls_bottleneck), 1)
 
         # ── Classification branch ────────────────────────────────────────
-        cls_features = self.avgpool(bottleneck)
-        cls_features = torch.flatten(cls_features, 1)
-        classification = self.classification_head(cls_features)
+        classification = self.classification_head(cls_flat)
 
         # ── Localization branch ──────────────────────────────────────────
-        loc_features = self.avgpool(bottleneck)
-        loc_features = torch.flatten(loc_features, 1)
-        localization = self.localization_head(loc_features)
+        localization = self.localization_head(cls_flat)
         localization = torch.sigmoid(localization) * self.image_size
 
+        # ── Segmentation encoder (needs its own skip connections) ────────
+        seg_bottleneck, skips = self.seg_encoder(x, return_features=True)
+
         # ── Segmentation branch (U-Net decoder) ─────────────────────────
-        seg = self.seg_bottleneck(bottleneck)
+        seg = self.seg_bottleneck(seg_bottleneck)
         seg = self.seg_up4(seg, skips["block4"])
         seg = self.seg_up3(seg, skips["block3"])
         seg = self.seg_up2(seg, skips["block2"])
