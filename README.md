@@ -1,6 +1,36 @@
-# DA6401 Assignment-2 Skeleton Guide
+# DA6401 Assignment-2 — Multi-Task Perception on Oxford-IIIT Pet
 
-This repository is an instructional skeleton for building the complete visual perception pipeline on Oxford-IIIT Pet.
+**W&B Report:** [https://api.wandb.ai/links/da25m020-indian-institute-of-technology-madras/y4rwjl32](https://api.wandb.ai/links/da25m020-indian-institute-of-technology-madras/y4rwjl32)
+
+**GitHub Repo:** [https://github.com/usnaveen/A2_Deep_Learning](https://github.com/usnaveen/A2_Deep_Learning)
+
+---
+
+## Project Structure
+
+```
+├── models/                  # VGG11 encoder, classifier, localizer, U-Net segmentation
+│   ├── vgg11.py             # Shared VGG11-BN encoder
+│   ├── classification.py    # Breed classification head
+│   ├── localization.py      # Bounding box regression head
+│   ├── segmentation.py      # U-Net decoder for trimap segmentation
+│   ├── multitask.py         # Shared-backbone multi-task model (Gradescope)
+│   └── layers.py            # CustomDropout
+├── losses/
+│   └── iou_loss.py          # Custom IoU loss
+├── data/
+│   └── pets_dataset.py      # Oxford-IIIT Pet dataset + transforms
+├── train.py                 # Training loop for all three tasks
+├── inference.py             # Inference & evaluation utilities
+├── multitask.py             # Entry point (imports MultiTaskPerceptionModel)
+├── requirements.txt
+├── Kaggle_Task1_Classify.ipynb           # Classification training
+├── Kaggle_Task2_Localize.ipynb           # Localization training
+├── Kaggle_Task3_Segment.ipynb            # Segmentation training
+├── Kaggle_Retrain_UNet_SharedEncoder.ipynb  # Retrain U-Net on shared encoder
+├── Kaggle_WandB_Report.ipynb             # Section 2.7 — Novel image showcase
+└── Kaggle_WandB_Full_Report.ipynb        # Sections 2.1–2.8 — Full W&B report panels
+```
 
 
 ### ADDITIONAL INSTRUCTIONS FOR ASSIGNMENT2:
