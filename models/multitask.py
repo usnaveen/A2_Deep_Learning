@@ -210,11 +210,18 @@ class MultiTaskPerceptionModel(nn.Module):
                 )
             print("  ✓ Localizer weights loaded.")
 
-        # Load U-Net weights → segmentation decoder
+        # Load U-Net weights → encoder override + segmentation decoder
         if os.path.exists(unet_path):
             unet_state = torch.load(unet_path, map_location=device, weights_only=False)
+            # Override shared encoder with UNet's encoder — the decoder skip
+            # connections were trained against these specific feature maps, so
+            # the encoder MUST match the decoder to produce correct predictions.
+            enc_keys = {k[len("encoder."):]: v for k, v in unet_state.items()
+                        if k.startswith("encoder.")}
+            if enc_keys:
+                self.encoder.load_state_dict(enc_keys, strict=False)
             # Load bottleneck
-            bn_keys = {k.replace("bottleneck.", ""): v for k, v in unet_state.items()
+            bn_keys = {k[len("bottleneck."):]: v for k, v in unet_state.items()
                        if k.startswith("bottleneck.")}
             if bn_keys:
                 self.seg_bottleneck.load_state_dict(bn_keys, strict=False)
@@ -222,16 +229,16 @@ class MultiTaskPerceptionModel(nn.Module):
             for block_name in ["up4", "up3", "up2", "up1", "up0"]:
                 src_prefix = f"{block_name}."
                 dst_block = getattr(self, f"seg_{block_name}")
-                block_keys = {k.replace(src_prefix, ""): v for k, v in unet_state.items()
+                block_keys = {k[len(src_prefix):]: v for k, v in unet_state.items()
                               if k.startswith(src_prefix)}
                 if block_keys:
                     dst_block.load_state_dict(block_keys, strict=False)
             # Final conv
-            fc_keys = {k.replace("final_conv.", ""): v for k, v in unet_state.items()
+            fc_keys = {k[len("final_conv."):]: v for k, v in unet_state.items()
                        if k.startswith("final_conv.")}
             if fc_keys:
                 self.seg_final.load_state_dict(fc_keys, strict=False)
-            print("  ✓ U-Net segmentation weights loaded.")
+            print("  ✓ U-Net segmentation weights loaded (encoder overridden).")
 
     def forward(self, x: torch.Tensor):
         """Forward pass for multi-task model.
